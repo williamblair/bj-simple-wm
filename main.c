@@ -7,6 +7,9 @@
 #include <X11/Xlib.h>
 #include <stdio.h>
 
+#define MIN_WIDTH  10 // the minimum width and height of each window
+#define MIN_HEIGHT 10
+
 int main(int argc, char *argv[])
 {
 	Display            *d = NULL;   // the main X Display to open
@@ -92,6 +95,12 @@ int main(int argc, char *argv[])
 			 * that way once movement or something happens we know where to start from */
 			XGetWindowAttributes(d, e.xbutton.subwindow, &a);
 			start = e.xbutton;
+
+			/* make sure the window isn't below any other windows
+			 * when it is active - this is the definition of
+			 * a 'raised' window, and is what the keypress event
+			 * above does */
+			XRaiseWindow(d, e.xbutton.subwindow);
 		}
 
 		/* handle mouse movement 
@@ -145,8 +154,8 @@ int main(int argc, char *argv[])
 				int newWidth = a.width + dX;   // the updated width and height of the window
 				int newHeight = a.height + dY;
 
-				if( newWidth  == 0 ) newWidth  = 1; // make sure the difference doesn't result in a window with no size
-				if( newHeight == 0 ) newHeight = 1;
+				if( newWidth  <= 0 ) newWidth  = MIN_WIDTH; // make sure the difference doesn't result in a window with no size
+				if( newHeight <= 0 ) newHeight = MIN_HEIGHT;
 
 				XMoveResizeWindow(d,                    // display pointer
 			    	              start.subwindow,      // which window to move
