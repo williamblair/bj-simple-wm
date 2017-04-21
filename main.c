@@ -129,21 +129,46 @@ int main(int argc, char *argv[])
 			 * position and the new mouse position */
 			int dX = e.xbutton.x_root - start.x_root;
 			int dY = e.xbutton.y_root - start.y_root;
-			
+		
+			/* the new position of the window is equal
+			 * to its old position plus the difference of the mouse
+			 * cursor */
+			int newX = a.x + dX;
+			int newY = a.y + dY;
+
 			/* if it was a left mouse click, move the window by
 			 * applying the mouse movement difference to the
 			 * x and y coordinates of the window */
 			if( start.button == 1 ) {
 
 				printf("Movement Event!\n");
+				printf("Ax Dx Width = %d\n", a.x + dX + a.width);
+			
+				/* if the farthest right of the window would be
+				 * offscreen, force it to stay onscreen*/
+				if( newX + a.width > XDisplayWidth(d, DefaultScreen(d))) {
+					newX = XDisplayWidth(d, DefaultScreen(d)) - a.width;
+				}
+				/* if the farthest left of the window would be
+				 * offscreen, force it to stay onscreen */
+				else if( newX <= 0 ) newX = 1;
 
+				/* same as above but for y coordinates */
+				if( newY + a.height > XDisplayHeight(d, DefaultScreen(d))) {
+					newY = XDisplayHeight(d, DefaultScreen(d)) - a.height;
+				}
+				else if( newY <= 0 ) newY = 1;
+
+				/* apply the new coordinates */
 				XMoveResizeWindow(d,                    // display pointer
-			    	              start.subwindow,      // which window to move
-								  a.x + dX,             // x coord 
-								  a.y + dY,             // y coord
+				                  start.subwindow,      // which window to move
+								  newX,                 // x coord 
+								  newY,                 // y coord
 								  a.width,              // width of the window
 								  a.height);            // height of the window
+
 			}
+
 			/* if it was a right mouse click, resize the window 
 			 * by applying the mouse movement difference to the width
 			 * and height of the window */
@@ -156,6 +181,14 @@ int main(int argc, char *argv[])
 
 				if( newWidth  <= 0 ) newWidth  = MIN_WIDTH; // make sure the difference doesn't result in a window with no size
 				if( newHeight <= 0 ) newHeight = MIN_HEIGHT;
+
+				/* make sure the window doesn't move offscreen */
+				if( a.x + newWidth > XDisplayWidth(d, DefaultScreen(d)) ) {
+					newWidth = XDisplayWidth(d, DefaultScreen(d)) - a.x;
+				}
+				if( a.y + newHeight > XDisplayHeight(d, DefaultScreen(d))) {
+					newHeight = XDisplayHeight(d, DefaultScreen(d)) - a.y;
+				}
 
 				XMoveResizeWindow(d,                    // display pointer
 			    	              start.subwindow,      // which window to move
@@ -173,6 +206,15 @@ int main(int argc, char *argv[])
 			printf("Button Release Event!\n");
 			start.subwindow = None;
 		}
+		
+		printf("Window X = %d\n", a.x);
+		printf("Window Y = %d\n", a.y);
+		printf("Window W = %d\n", a.width);
+		printf("Window H = %d\n", a.height);
+
+		printf("Display Width  = %d\n", XDisplayWidth(d,DefaultScreen(d)));
+		printf("Display Height = %d\n", XDisplayHeight(d,DefaultScreen(d)));
+
 
 	} while(1);
 
