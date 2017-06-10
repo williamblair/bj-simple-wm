@@ -5,10 +5,112 @@
  * */
 
 #include <X11/Xlib.h>
+#include <X11/Xutil.h>
+
 #include <stdio.h>
+#include <stdlib.h>
 
 #define MIN_WIDTH  10 // the minimum width and height of each window
 #define MIN_HEIGHT 10
+
+#define TASKBAR_HEIGHT 30 // the height of the taskbar
+
+int frames_index=0;
+Window frames[10]; // make me a linked list later!
+
+/* testing!!! */
+Bool reparent_window(Display *d, Window child, Bool before_wm)
+{
+	XWindowAttributes a; // get info about the child window to create
+	                     // its border
+	                     
+	const int border_width = 2; // border size of the parent window
+	const int title_height = 20; // size of the title bar
+	
+	/* get child information */
+	XGetWindowAttributes(d, child, &a);
+	
+	/* exit if we have too many windows cuz no linked list yet */
+	if(frames_index >= 10){
+		fprintf(stderr, "MORE THAN 10 Windows AAAAHHH!\n");
+		exit(0);
+	}
+	
+	/* create the border window */
+	frames[frames_index] = XCreateSimpleWindow(d,                                  // Display *d
+	                             RootWindow(d, DefaultScreen(d)),    // Display *parent
+	                             0,                                // x coord
+	                             0,                                // y coord
+	                             a.width+(border_width),           // window width
+	                             a.height+title_height,              // window height
+	                             border_width,                       // border size
+	                             WhitePixel(d, DefaultScreen(d)),    // border
+	                             BlackPixel(d, DefaultScreen(d)));   // background
+	
+	/* select events on the frame */
+	XSelectInput( d, 
+	              frames[frames_index], 
+	              SubstructureRedirectMask | SubstructureNotifyMask );
+	              
+	/* restores the child if we crash somehow */
+	XAddToSaveSet(d, child);
+	
+	/* assuming last thing needed to do */
+	XReparentWindow(d,                        // Display *d 
+	                child,                    // Window w
+	                frames[frames_index],     // Window parent
+	                border_width,             // int x - x position in new parent window
+	                title_height);            // int y - y position in new parent window
+	
+	  // 9. Grab universal window management actions on client window.
+  //   a. Move windows with alt + left button.
+  XGrabButton(
+      d,
+      Button1,
+      Mod1Mask,
+      child,
+      False,
+      ButtonPressMask | ButtonReleaseMask | ButtonMotionMask,
+      GrabModeAsync,
+      GrabModeAsync,
+      None,
+      None);
+  //   b. Resize windows with alt + right button.
+  XGrabButton(
+      d,
+      Button3,
+      Mod1Mask,
+      child,
+      False,
+      ButtonPressMask | ButtonReleaseMask | ButtonMotionMask,
+      GrabModeAsync,
+      GrabModeAsync,
+      None,
+      None);
+  //   c. Kill windows with alt + f4.
+  XGrabKey(
+      d,
+      XKeysymToKeycode(d, XK_F4),
+      Mod1Mask,
+      child,
+      False,
+      GrabModeAsync,
+      GrabModeAsync);
+  //   d. Switch windows with alt + tab.
+  XGrabKey(
+      d,
+      XKeysymToKeycode(d, XK_Tab),
+      Mod1Mask,
+      child,
+      False,
+      GrabModeAsync,
+      GrabModeAsync);
+	
+	/* map the parent window */
+	XMapWindow(d, frames[frames_index]);
+	frames_index++;
+	return True;
+}
 
 int main(int argc, char *argv[])
 {
@@ -17,6 +119,11 @@ int main(int argc, char *argv[])
 	XButtonEvent        start;      // saves the cursor's position at the beginning of a move event
 	XEvent              e;          // hold's X server events
 	Bool                run = True; // False when the program is done running
+
+	Window              testWindow; // testing creation of a taskBar or something
+	
+	//Window              parentWindow; // testing reparenting
+	//Window              childWindow;
 
 	/* open the main display and error check 
 	 * args - char *display_name
@@ -28,7 +135,33 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 	printf("Opened Display!\n");
+	
+	/* test the window reparenting */
+	//reparent_window(d, parentWindow, childWindow);
 
+	/* tell X we want to utilize Substructure Redirection, for 
+	 * reparenting created windows */
+	XSelectInput( d,                                                     // display
+	              RootWindow(d, DefaultScreen(d)),                      // window to select input on
+	              SubstructureRedirectMask | SubstructureNotifyMask );   // which masks to use
+	XSync(d, False); // clear all events
+	
+	XGrabServer(d); // prevents windows from changing under us
+	
+	/* frame windows created before manager started */
+	Window r, p, *c; // root return, parent return, *children return
+	unsigned int numChildren, i; // number of children of the root windows
+	XQueryTree( d,                                     // Display *d
+	            RootWindow(d, DefaultScreen(d)),       // Window w
+	            &r,                                    // Window *root_return
+	            &p,                                    // Window *parent
+	            &c,                                    // Window **children_return
+	            &numChildren );                        // unsigned int *nchildren_return
+
+	for(i=0; i<numChildren; i++){
+		printf("Reparenting window number %d\n", i);
+		reparent_window(d, *(c+i), True);
+	}
 
 	/* Select which types of key press/mouse press events we want to receieve */
 
@@ -64,10 +197,39 @@ int main(int argc, char *argv[])
 				GrabModeAsync,                                            // int pointer_mode - specifies further processing of events - either GrabModeSync or GrabModeAsync
 				None,                                                     // Window confine_to - specifies to window to confine the cursor in or None
 				None);                                                    // Cursor cursor - specifies the cursor to be displayed or None
+				
+	/* grab right mouse click on root window */
+	XGrabButton(d,
+	            3,
+	            0,                      // trying with no masks... edit - Works!\n
+	            DefaultRootWindow(d),
+	            True,
+	            ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+	            GrabModeAsync,
+	            GrabModeAsync,
+	            None,
+	            None);
+
+	/* Create the taskbar/test window - won't be reparented (i think) */
+	int width  = DisplayWidth( d, DefaultScreen(d));
+	int height = DisplayHeight(d, DefaultScreen(d));
+	testWindow = XCreateSimpleWindow(d,                                  // Display *d
+	                                 RootWindow(d, DefaultScreen(d)),    // Display *parent
+									 0,                                  // x coord
+									 height - TASKBAR_HEIGHT,            // y coord
+									 width,                              // window width
+									 TASKBAR_HEIGHT,                     // window height
+									 1,                                  // border size
+									 BlackPixel(d, DefaultScreen(d)),    // border
+									 WhitePixel(d, DefaultScreen(d)));   // background
+	/* make the window visible */
+	XMapWindow(d, testWindow);
 
 	/* makes it so that there is no child event window of 
 	 * the current event window */
 	start.subwindow = None;
+
+	XUngrabServer(d);
 
 	/* the main event loop */
 	do
@@ -101,6 +263,11 @@ int main(int argc, char *argv[])
 			 * a 'raised' window, and is what the keypress event
 			 * above does */
 			XRaiseWindow(d, e.xbutton.subwindow);
+		}
+		
+		else if(e.type == ButtonPress &&
+		        e.xbutton.subwindow == None){
+			printf("No subwindow!\n");
 		}
 
 		/* handle mouse movement 
@@ -198,6 +365,57 @@ int main(int argc, char *argv[])
 								  newHeight);           // height of the window
 
 			}
+		}
+		
+		else if(e.type == CreateNotify){
+			printf("Create notify event!\n");
+		}
+		/* TODO - destroy frame when the window is destroyed */
+		/* resize window if necessary*/
+		else if (e.type == ConfigureRequest){
+			XWindowChanges changes;
+			  changes.x = e.xconfigurerequest.x;
+			  changes.y = e.xconfigurerequest.y;
+			  changes.width = e.xconfigurerequest.width;
+			  changes.height = e.xconfigurerequest.height;
+			  changes.border_width = e.xconfigurerequest.border_width;
+			  changes.sibling = e.xconfigurerequest.above;
+			  changes.stack_mode = e.xconfigurerequest.detail;
+			  /*if (clients_.count(e.window)) {
+				const Window frame = clients_[e.window];
+				XConfigureWindow(display_, frame, e.value_mask, &changes);
+				LOG(INFO) << "Resize [" << frame << "] to " << Size<int>(e.width, e.height);
+			  }*/
+			  XConfigureWindow(d, e.xconfigurerequest.window, e.xconfigurerequest.value_mask, &changes);
+			  //LOG(INFO) << "Resize " << e.window << " to " << Size<int>(e.width, e.height);
+			  printf("Resize: (%d, %d), X,Y: (%d,%d)\n", e.xconfigurerequest.width, e.xconfigurerequest.height, e.xconfigurerequest.x, e.xconfigurerequest.y);
+		}
+		
+		else if(e.type == MapRequest){
+			printf("Map request!\n");
+			reparent_window(d, e.xmaprequest.window, False);
+			XMapWindow(d, e.xmaprequest.window);
+		}
+
+		else if(e.type == UnmapNotify){
+			printf("Unmap notify event!\n");
+			
+			/* if im understanding xlib.pdf right, 'event' is the 
+			 * unmapped window or its parent, depending if
+			 * StructureNotify or SubstructureNotify was selected */
+			printf("Before unmap window!\n");
+			XUnmapWindow(d, e.xunmap.event);
+			XDestroyWindow(d, e.xunmap.event);
+			printf("After unmap window!\n");
+
+			// free allocated memory for children
+			//if(c) XFree(c);
+		}
+
+		/* when the window is destroyed, destroy the parent */
+		else if(e.type == DestroyNotify){
+			printf("Destroy notify event!\n");
+
 		}
 
 		/* if we relase the mouse or keyboard keys,
