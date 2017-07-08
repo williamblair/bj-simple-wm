@@ -17,9 +17,10 @@ Bool reparent_window(Display *d, Window child, Bool before_wm)
 {
 	XWindowAttributes a; // get info about the child window to create
 	                     // its border
-	                     
-	const int border_width = 2; // border size of the parent window
-	const int title_height = 20; // size of the title bar
+	  
+	/* moved as defines in reparent.h; used to resize windows */                   
+	//const int border_width = 2; // border size of the parent window
+	//const int title_height = 20; // size of the title bar
 	
 	/* get child information */
 	XGetWindowAttributes(d, child, &a);
@@ -35,9 +36,9 @@ Bool reparent_window(Display *d, Window child, Bool before_wm)
 	                             RootWindow(d, DefaultScreen(d)),    // Display *parent
 	                             0,                                // x coord
 	                             0,                                // y coord
-	                             a.width+(border_width),           // window width
-	                             a.height+title_height,              // window height
-	                             border_width,                       // border size
+	                             a.width+(BORDER_WIDTH),           // window width
+	                             a.height+TITLE_HEIGHT,              // window height
+	                             BORDER_WIDTH,                       // border size
 	                             WhitePixel(d, DefaultScreen(d)),    // border
 	                             BlackPixel(d, DefaultScreen(d)));   // background
 	
@@ -53,8 +54,9 @@ Bool reparent_window(Display *d, Window child, Bool before_wm)
 	XReparentWindow(d,                        // Display *d 
 	                child,                    // Window w
 	                frames[frames_index],     // Window parent
-	                border_width,             // int x - x position in new parent window
-	                title_height);            // int y - y position in new parent window
+	                //BORDER_WIDTH-(BORDER_WIDTH/2),             // int x - x position in new parent window
+	                0,             // int x - x position in new parent window
+	                TITLE_HEIGHT);            // int y - y position in new parent window
 	
 	  // 9. Grab universal window management actions on client window.
   //   a. Move windows with alt + left button.

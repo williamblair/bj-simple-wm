@@ -269,13 +269,47 @@ int main(int argc, char *argv[])
 								  newWidth,             // width of the window
 								  newHeight);           // height of the window
 
+				/* testing getting subwindow status (to resize the child window */
+				Window root; // root window
+				Window parent; // parent window of the configure request window
+				Window *children; // list of child windows
+				unsigned int nchildren; // size of the list of child windows
+				XQueryTree(d,
+				            start.subwindow,
+				            &root,
+				            &parent,
+				            &children,
+				            &nchildren
+				);
+	
+				if(nchildren > 0){
+					printf("Number of children: %d\n", nchildren);
+
+					/* get the current status of the child window */
+					XWindowAttributes aChild; // attributes of the child window
+					XGetWindowAttributes(d, children[0], &aChild);
+
+					/* resize the child window */
+					XMoveResizeWindow(d,
+					                  children[0],
+					                  aChild.x, // stay in the current x/y
+					                  aChild.y,
+					                  newWidth - BORDER_WIDTH, // use the width and height from the calculated window above, adjusting for the border/titlebar
+					                  newHeight - TITLE_HEIGHT
+					);
+
+					/* free the list of children */
+					XFree(children);
+				}
+				else{
+					printf("num children == 0!\n");
+				}
 			}
 		}
 		
 		else if(e.type == CreateNotify){
 			printf("Create notify event!\n");
 		}
-		/* TODO - destroy frame when the window is destroyed */
 		/* resize window if necessary*/
 		else if (e.type == ConfigureRequest){
 			XWindowChanges changes;
@@ -286,14 +320,29 @@ int main(int argc, char *argv[])
 			  changes.border_width = e.xconfigurerequest.border_width;
 			  changes.sibling = e.xconfigurerequest.above;
 			  changes.stack_mode = e.xconfigurerequest.detail;
-			  /*if (clients_.count(e.window)) {
-				const Window frame = clients_[e.window];
-				XConfigureWindow(display_, frame, e.value_mask, &changes);
-				LOG(INFO) << "Resize [" << frame << "] to " << Size<int>(e.width, e.height);
-			  }*/
 			  XConfigureWindow(d, e.xconfigurerequest.window, e.xconfigurerequest.value_mask, &changes);
-			  //LOG(INFO) << "Resize " << e.window << " to " << Size<int>(e.width, e.height);
 			  printf("Resize: (%d, %d), X,Y: (%d,%d)\n", e.xconfigurerequest.width, e.xconfigurerequest.height, e.xconfigurerequest.x, e.xconfigurerequest.y);
+
+			/* testing getting subwindow status (to resize the child window */
+			Window root; // root window
+			Window parent; // parent window of the configure request window
+			Window *children; // list of child windows
+			unsigned int nchildren; // size of the list of child windows
+			XQueryTree(d,
+			            e.xconfigurerequest.window,
+			            &root,
+			            &parent,
+			            &children,
+			            &nchildren
+			);
+
+			if(nchildren > 0){
+				printf("Number of children: %d\n", nchildren);
+				XFree(children);
+			}
+			else{
+				printf("num children == 0!\n");
+			}
 		}
 		
 		else if(e.type == MapRequest){
