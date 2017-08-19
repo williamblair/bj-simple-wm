@@ -57,7 +57,8 @@ Bool reparent_window(Display *d, Window child, Bool before_wm)
 	                //BORDER_WIDTH-(BORDER_WIDTH/2),             // int x - x position in new parent window
 	                0,             // int x - x position in new parent window
 	                TITLE_HEIGHT);            // int y - y position in new parent window
-	
+
+/*
 	  // 9. Grab universal window management actions on client window.
   //   a. Move windows with alt + left button.
   XGrabButton(
@@ -101,7 +102,25 @@ Bool reparent_window(Display *d, Window child, Bool before_wm)
       False,
       GrabModeAsync,
       GrabModeAsync);
-	
+*/
+// Grab input to frame
+XGrabButton(
+    d,
+    1,
+    None,
+    frames[frames_index],
+    //False,
+    True,
+    //ButtonPressMask | ButtonReleaseMask | ButtonMotionMask | PointerMotionMask,
+    //ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+    ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+    GrabModeAsync,
+    GrabModeAsync,
+    //None,
+    frames[frames_index],
+    None
+);
+
 	/* map the parent window */
 	XMapWindow(d, frames[frames_index]);
 	frames_index++;

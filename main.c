@@ -24,6 +24,8 @@ int main(int argc, char *argv[])
 	XButtonEvent        start;      // saves the cursor's position at the beginning of a move event
 	XEvent              e;          // hold's X server events
 	Bool                run = True; // False when the program is done running
+	
+	Bool button_pressed = False;     // for moving off the frame - true until a button is released
 
 	Window              testWindow; // testing creation of a taskBar or something
 	
@@ -71,16 +73,17 @@ int main(int argc, char *argv[])
 	/* Select which types of key press/mouse press events we want to receieve */
 
 	/* grab F1 */
-	XGrabKey(d,                                            // display pointer - x server connection
+	/*XGrabKey(d,                                            // display pointer - x server connection
 	         XKeysymToKeycode(d, XStringToKeysym("F1")),   // int keycode - which key is pressed to trigger handling
 			 Mod1Mask,                                     // unsigned int modifiers - specific keymass, can also send AnyModifier for all types
 			 DefaultRootWindow(d),                         // Window grab_window - which window these keypresses apply to - in this case the root window
 			 True,                                         // Bool owner_events - wether these keyboard events are also reported like normal to the system
 			 GrabModeAsync,                                // int pointer_mode - specifies further processing of pointer events - either GrabModeSync or GrabModeAsync
 			 GrabModeAsync);                               // int keyboard_mode - specifies further processing of keyboard events - either GrabModeSync or GrabModeAsync
+	*/
 
 	/* grab left mouse click in specific situations */
-	XGrabButton(d,                                                        // display pointer
+	/*XGrabButton(d,                                                        // display pointer
 	            1,                                                        // unsigned int button - which button is pressed, or AnyButton
 				Mod1Mask,                                                 // unsigned int modifiers - set of keymasks or AnyModifier
 				DefaultRootWindow(d),                                     // Window grab_window - which window these button presses are handled in - in this case the root window
@@ -90,9 +93,9 @@ int main(int argc, char *argv[])
 				GrabModeAsync,                                            // int pointer_mode - specifies further processing of events - either GrabModeSync or GrabModeAsync
 				None,                                                     // Window confine_to - specifies to window to confine the cursor in or None
 				None);                                                    // Cursor cursor - specifies the cursor to be displayed or None
-
+	*/
 	/* grab right mouse click in specific situations */
-	XGrabButton(d,                                                        // display pointer
+	/*XGrabButton(d,                                                        // display pointer
 	            3,                                                        // unsigned int button - which button is pressed, or AnyButton
 				Mod1Mask,                                                 // unsigned int modifiers - set of keymasks or AnyModifier
 				DefaultRootWindow(d),                                     // Window grab_window - which window these button presses are handled in - in this case the root window
@@ -102,9 +105,9 @@ int main(int argc, char *argv[])
 				GrabModeAsync,                                            // int pointer_mode - specifies further processing of events - either GrabModeSync or GrabModeAsync
 				None,                                                     // Window confine_to - specifies to window to confine the cursor in or None
 				None);                                                    // Cursor cursor - specifies the cursor to be displayed or None
-				
+	*/			
 	/* grab right mouse click on root window */
-	XGrabButton(d,
+	/*XGrabButton(d,
 	            3,
 	            0,                      // trying with no masks... edit - Works!\n
 	            DefaultRootWindow(d),
@@ -114,7 +117,7 @@ int main(int argc, char *argv[])
 	            GrabModeAsync,
 	            None,
 	            None);
-
+	*/
 	/* Create the taskbar/test window - won't be reparented (i think) */
 	int width  = DisplayWidth( d, DefaultScreen(d));
 	int height = DisplayHeight(d, DefaultScreen(d));
@@ -170,17 +173,97 @@ int main(int argc, char *argv[])
 			XRaiseWindow(d, e.xbutton.subwindow);
 		}
 		
-		else if(e.type == ButtonPress &&
-		        e.xbutton.subwindow == None){
+		/* try raising a window if frame pressed */
+		else if( e.type == ButtonPress &&
+		         e.xbutton.window != None ){
+			printf("Xbutton window button press!\n");
+			
+			// make the window frame pressed bool True
+			button_pressed = True;
+			
+			/* save current attributes of the active window so
+			 * if something like motion happens we have its 
+			 * attributes */
+			XGetWindowAttributes(d, e.xbutton.window, &a);
+			start = e.xbutton;
+			
+			/* make sure the window isn't below any other windows
+			 * when it is active */
+			XRaiseWindow(d, e.xbutton.window);
+			 
+		}
+		
+		// undo the button pressed = True above
+		else if(e.type == ButtonRelease) button_pressed = False;
+		
+		/* happens on window frames */
+		//else if(e.type == ButtonPress &&
+		//        e.xbutton.subwindow == None){
+		//	printf("No subwindow!\n");
+		//}
+		
+		/* move window frames? */
+		else if(e.type == MotionNotify && 
+		        //e.xbutton.subwindow == None
+		        button_pressed == True)
+		{
 			printf("No subwindow!\n");
+			
+			/* if it was a left mouse click, move the window by
+			 * applying the mouse movement difference to the
+			 * x and y coordinates of the window */
+			if( start.button == 1 ) {
+				
+				/* calculate the x and y difference between the original mouse
+				* position and the new mouse position */
+				int dX = e.xbutton.x_root - start.x_root;
+				int dY = e.xbutton.y_root - start.y_root;
+			
+				/* the new position of the window is equal
+				* to its old position plus the difference of the mouse
+				* cursor */
+				int newX = a.x + dX;
+				int newY = a.y + dY;
+
+
+				printf("No subwindow Movement Event!\n");
+				//printf("Ax Dx Width = %d\n", a.x + dX + a.width);
+			
+				/* if the farthest right of the window would be
+				 * offscreen, force it to stay onscreen*/
+				if( newX + a.width > XDisplayWidth(d, DefaultScreen(d))) {
+					newX = XDisplayWidth(d, DefaultScreen(d)) - a.width;
+				}
+				/* if the farthest left of the window would be
+				 * offscreen, force it to stay onscreen */
+				else if( newX <= 0 ) newX = 1;
+
+				/* same as above but for y coordinates */
+				if( newY + a.height > XDisplayHeight(d, DefaultScreen(d))) {
+					newY = XDisplayHeight(d, DefaultScreen(d)) - a.height;
+				}
+				else if( newY <= 0 ) newY = 1;
+				
+				printf("New X: %d\n", newX);
+				printf("New Y: %d\n", newY);
+
+				/* apply the new coordinates */
+				XMoveResizeWindow(d,                    // display pointer
+				                  start.window,         // which window to move
+								  newX,                 // x coord 
+								  newY,                 // y coord
+								  a.width,              // width of the window
+								  a.height);            // height of the window
+			}
+
 		}
 
 		/* handle mouse movement 
 		 * X11 automatically only sends motion events if a button is also
 		 * being pressed */
-		else if(e.type == MotionNotify &&       // if the event was a motion event
-				start.subwindow != None )       // from above, if we had clicked on a window
-		{
+		//else if(e.type == MotionNotify &&       // if the event was a motion event
+		//		start.subwindow != None )       // from above, if we had clicked on a window
+		//{
 			/* notes below taken from tinywm that this is based off of 
 			 *
 			 * could compress motion notify events here with
@@ -199,113 +282,113 @@ int main(int argc, char *argv[])
 
 			/* calculate the x and y difference between the original mouse
 			 * position and the new mouse position */
-			int dX = e.xbutton.x_root - start.x_root;
-			int dY = e.xbutton.y_root - start.y_root;
+		//	int dX = e.xbutton.x_root - start.x_root;
+		//	int dY = e.xbutton.y_root - start.y_root;
 		
 			/* the new position of the window is equal
 			 * to its old position plus the difference of the mouse
 			 * cursor */
-			int newX = a.x + dX;
-			int newY = a.y + dY;
+		//	int newX = a.x + dX;
+		//	int newY = a.y + dY;
 
 			/* if it was a left mouse click, move the window by
 			 * applying the mouse movement difference to the
 			 * x and y coordinates of the window */
-			if( start.button == 1 ) {
+		//	if( start.button == 1 ) {
 
-				printf("Movement Event!\n");
-				printf("Ax Dx Width = %d\n", a.x + dX + a.width);
+		//		printf("Movement Event!\n");
+		//		printf("Ax Dx Width = %d\n", a.x + dX + a.width);
 			
 				/* if the farthest right of the window would be
 				 * offscreen, force it to stay onscreen*/
-				if( newX + a.width > XDisplayWidth(d, DefaultScreen(d))) {
-					newX = XDisplayWidth(d, DefaultScreen(d)) - a.width;
-				}
+		//		if( newX + a.width > XDisplayWidth(d, DefaultScreen(d))) {
+		//			newX = XDisplayWidth(d, DefaultScreen(d)) - a.width;
+		//		}
 				/* if the farthest left of the window would be
 				 * offscreen, force it to stay onscreen */
-				else if( newX <= 0 ) newX = 1;
+		//		else if( newX <= 0 ) newX = 1;
 
 				/* same as above but for y coordinates */
-				if( newY + a.height > XDisplayHeight(d, DefaultScreen(d))) {
-					newY = XDisplayHeight(d, DefaultScreen(d)) - a.height;
-				}
-				else if( newY <= 0 ) newY = 1;
+		//		if( newY + a.height > XDisplayHeight(d, DefaultScreen(d))) {
+		//			newY = XDisplayHeight(d, DefaultScreen(d)) - a.height;
+		//		}
+		//		else if( newY <= 0 ) newY = 1;
 
 				/* apply the new coordinates */
-				XMoveResizeWindow(d,                    // display pointer
-				                  start.subwindow,      // which window to move
-								  newX,                 // x coord 
-								  newY,                 // y coord
-								  a.width,              // width of the window
-								  a.height);            // height of the window
+		//		XMoveResizeWindow(d,                    // display pointer
+		//		                  start.subwindow,      // which window to move
+		//						  newX,                 // x coord 
+		//						  newY,                 // y coord
+		//						  a.width,              // width of the window
+		//						  a.height);            // height of the window
 
-			}
+		//	}
 
 			/* if it was a right mouse click, resize the window 
 			 * by applying the mouse movement difference to the width
 			 * and height of the window */
-			else if( start.button == 3){
+		//	else if( start.button == 3){
 
-				printf("Resize Event!\n");
+		//		printf("Resize Event!\n");
 
-				int newWidth = a.width + dX;   // the updated width and height of the window
-				int newHeight = a.height + dY;
+		//		int newWidth = a.width + dX;   // the updated width and height of the window
+		//		int newHeight = a.height + dY;
 
-				if( newWidth  <= 0 ) newWidth  = MIN_WIDTH; // make sure the difference doesn't result in a window with no size
-				if( newHeight <= 0 ) newHeight = MIN_HEIGHT;
+		//		if( newWidth  <= 0 ) newWidth  = MIN_WIDTH; // make sure the difference doesn't result in a window with no size
+		//		if( newHeight <= 0 ) newHeight = MIN_HEIGHT;
 
 				/* make sure the window doesn't move offscreen */
-				if( a.x + newWidth > XDisplayWidth(d, DefaultScreen(d)) ) {
-					newWidth = XDisplayWidth(d, DefaultScreen(d)) - a.x;
-				}
-				if( a.y + newHeight > XDisplayHeight(d, DefaultScreen(d))) {
-					newHeight = XDisplayHeight(d, DefaultScreen(d)) - a.y;
-				}
+		//		if( a.x + newWidth > XDisplayWidth(d, DefaultScreen(d)) ) {
+		//			newWidth = XDisplayWidth(d, DefaultScreen(d)) - a.x;
+		//		}
+		//		if( a.y + newHeight > XDisplayHeight(d, DefaultScreen(d))) {
+		//			newHeight = XDisplayHeight(d, DefaultScreen(d)) - a.y;
+		//		}
 
-				XMoveResizeWindow(d,                    // display pointer
-			    	              start.subwindow,      // which window to move
-								  a.x,                  // x coord 
-								  a.y,                  // y coord
-								  newWidth,             // width of the window
-								  newHeight);           // height of the window
+		//		XMoveResizeWindow(d,                    // display pointer
+		//	    	              start.subwindow,      // which window to move
+		//						  a.x,                  // x coord 
+		//						  a.y,                  // y coord
+		//						  newWidth,             // width of the window
+		//						  newHeight);           // height of the window
 
 				/* testing getting subwindow status (to resize the child window */
-				Window root; // root window
-				Window parent; // parent window of the configure request window
-				Window *children; // list of child windows
-				unsigned int nchildren; // size of the list of child windows
-				XQueryTree(d,
-				            start.subwindow,
-				            &root,
-				            &parent,
-				            &children,
-				            &nchildren
-				);
+		//		Window root; // root window
+		//		Window parent; // parent window of the configure request window
+		//		Window *children; // list of child windows
+		//		unsigned int nchildren; // size of the list of child windows
+		//		XQueryTree(d,
+		//		            start.subwindow,
+		//		            &root,
+		//		            &parent,
+		//		            &children,
+		//		            &nchildren
+		//		);
 	
-				if(nchildren > 0){
-					printf("Number of children: %d\n", nchildren);
+		//		if(nchildren > 0){
+		//			printf("Number of children: %d\n", nchildren);
 
 					/* get the current status of the child window */
-					XWindowAttributes aChild; // attributes of the child window
-					XGetWindowAttributes(d, children[0], &aChild);
+		//			XWindowAttributes aChild; // attributes of the child window
+		//			XGetWindowAttributes(d, children[0], &aChild);
 
 					/* resize the child window */
-					XMoveResizeWindow(d,
-					                  children[0],
-					                  aChild.x, // stay in the current x/y
-					                  aChild.y,
-					                  newWidth - BORDER_WIDTH, // use the width and height from the calculated window above, adjusting for the border/titlebar
-					                  newHeight - TITLE_HEIGHT
-					);
+		//			XMoveResizeWindow(d,
+		//			                  children[0],
+		//			                  aChild.x, // stay in the current x/y
+		//			                  aChild.y,
+		//			                  newWidth - BORDER_WIDTH, // use the width and height from the calculated window above, adjusting for the border/titlebar
+		//			                  newHeight - TITLE_HEIGHT
+		//			);
 
 					/* free the list of children */
-					XFree(children);
-				}
-				else{
-					printf("num children == 0!\n");
-				}
-			}
-		}
+		//			XFree(children);
+		//		}
+		//		else{
+		//			printf("num children == 0!\n");
+		//		}
+		//	}
+		//}
 		
 		else if(e.type == CreateNotify){
 			printf("Create notify event!\n");
@@ -378,7 +461,7 @@ int main(int argc, char *argv[])
 			printf("Button Release Event!\n");
 			start.subwindow = None;
 		}
-		
+		/*
 		printf("Window X = %d\n", a.x);
 		printf("Window Y = %d\n", a.y);
 		printf("Window W = %d\n", a.width);
@@ -386,7 +469,7 @@ int main(int argc, char *argv[])
 
 		printf("Display Width  = %d\n", XDisplayWidth(d,DefaultScreen(d)));
 		printf("Display Height = %d\n", XDisplayHeight(d,DefaultScreen(d)));
-
+		*/
 
 	} while(1);
 
